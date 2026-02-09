@@ -1,23 +1,19 @@
 import requests
 import sys
-from argparse    import ArgumentParser as ArgParser
-
+from argparse  import ArgumentParser as ArgParser
+from threading import Thread, Lock
 
 
 class StackSniffer:
 
-    HEADERS = {
-        'User-Agent': 'python-requests/2.31.0',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    }
-
-
-    __slots__ = ('_redirec', '_url', '_server_info')
+    __slots__ = ('_redirec', '_url', '_server_info', '_responses', '_lock')
 
     def __init__(self):
         self._redirec:     bool = None
         self._url:          str = None
         self._server_info: dict = {}
+        self._responses:   list = []
+        self._lock:        Lock = Lock()
 
 
     
@@ -25,6 +21,7 @@ class StackSniffer:
         self._parse_args()
         self._validate_url()        
         self._get_server_info()
+        self._analyze_responses()
         self._display_results()
 
     
@@ -32,7 +29,7 @@ class StackSniffer:
     def _parse_args(self):
         parser = ArgParser(description='Stack-Sniffer')
         parser.add_argument('--url', type=str, help='URL')
-        parser.add_argument('-R', '--redirec', action='store_true', help='Allow redirection')
+        parser.add_argument('-r', '--redirec', action='store_true', help='Allow redirection')
         args = parser.parse_args(self._get_args())
 
         self._url     = args.url
@@ -63,29 +60,59 @@ class StackSniffer:
 
 
     def _get_server_info(self):
+        USER_AGENTS = [
+            'curl/7.81.0',
+            'python-requests/2.31.0',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        ]
+
+        threads = []
+        for user in USER_AGENTS:
+            headers = {
+                'User-Agent': user,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            }
+
+            t = Thread(target=self._make_request, args=(headers,))
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+    
+
+    def _make_request(self, headers: dict):
+        try:
+            response = requests.head(
+                self._url, headers=headers, 
+                timeout=5, allow_redirects=self._redirec
+            )
+            
+            with self._lock:
+                self._responses.append(response)
+
+        except Exception:
+            pass
+
+    
+
+    def _analyze_responses(self):
         HEADERS_TO_CHECK = [
             'Server', 'X-Powered-By', 'X-Generator', 
             'X-AspNet-Version', 'X-AspNetMvc-Version',
             'X-Runtime', 'X-Frame-Options'
         ]
 
-        try:
-            response = requests.head(
-                self._url, headers=self.HEADERS, 
-                timeout=5, allow_redirects=self._redirec
-            )
-            
+        for resp in self._responses:
             self._server_info = {
-                'location':    response.url,
-                'status_code': response.status_code,
+                'location':   resp.url,
+                'status_code':resp.status_code,
             }
-            
+
             for header in HEADERS_TO_CHECK:
-                if header in response.headers:
-                    self._server_info[header] = response.headers[header]
-                
-        except Exception as e:
-            self._abort(str(e))
+                if header in resp.headers:
+                    self._server_info[header] = resp.headers[header]
 
 
         
