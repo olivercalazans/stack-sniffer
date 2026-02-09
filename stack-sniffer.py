@@ -1,5 +1,6 @@
 import requests
 import sys
+from argparse    import ArgumentParser as ArgParser
 
 
 
@@ -11,29 +12,40 @@ class StackSniffer:
     }
 
 
+    __slots__ = ('_redirec', '_url', '_server_info')
+
     def __init__(self):
-        self._url:         str  = None
+        self._redirec:     bool = None
+        self._url:          str = None
         self._server_info: dict = {}
 
 
     
     def analyze(self):
-        self._get_url()
+        self._parse_args()
         self._validate_url()        
         self._get_server_info()
         self._display_results()
 
+    
+
+    def _parse_args(self):
+        parser = ArgParser(description='Stack-Sniffer')
+        parser.add_argument('--url', type=str, help='URL')
+        parser.add_argument('-R', '--redirec', action='store_true', help='Allow redirection')
+        args = parser.parse_args(self._get_args())
+
+        self._url     = args.url
+        self._redirec = args.redirec 
 
 
-    def _get_url(self):
-        len_args = len(sys.argv)
+
+    @staticmethod
+    def _get_args() -> list[str]:        
+        if len(sys.argv) < 2:
+            StackSniffer._abort('Missing arguments')
         
-        if len_args < 2:
-            self._abort('Missing URL')
-        elif len_args > 2:
-            self._abort(f'Too many arguments. Only a URL is necessary')
-        
-        self._url = sys.argv[1]
+        return sys.argv[1:]
 
     
 
@@ -46,7 +58,7 @@ class StackSniffer:
 
     def _validate_url(self):
         if not self._url.startswith(('http://', 'https://')):
-            self._url = 'https://' + self._url
+            self._url = 'http://' + self._url
 
 
 
@@ -56,33 +68,54 @@ class StackSniffer:
             'X-AspNet-Version', 'X-AspNetMvc-Version',
             'X-Runtime', 'X-Frame-Options'
         ]
+
         try:
             response = requests.head(
                 self._url, headers=self.HEADERS, 
-                timeout=5, allow_redirects=True
+                timeout=5, allow_redirects=self._redirec
             )
             
             self._server_info = {
-                'location':   response.url,
+                'location':    response.url,
                 'status_code': response.status_code,
             }
             
             for header in HEADERS_TO_CHECK:
                 if header in response.headers:
                     self._server_info[header] = response.headers[header]
-            
-            
+                
         except Exception as e:
             self._abort(str(e))
 
 
         
     def _display_results(self):
-            for k, v in self._server_info.items():
-                print(f'{k}: {v}')
+        self._display_header()
+        self._display_info()
 
     
+
+    def _display_header(self):
+        print(f'[@] Target -> {self._url}')
     
+
+
+    def _display_info(self):
+        bigger  = max(self._server_info, key=len)
+        max_len = len(bigger) + 3
+
+        for k, value in self._server_info.items():
+            space = max_len - len(k)
+            desc  = self._format_str(k)
+            print(f'{desc}{space * '.'}: {value}')
+
+
+    
+    @staticmethod
+    def _format_str(string: str) -> str:
+        string = string.replace('_', ' ')
+        return string.title()
+
 
 
 
