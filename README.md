@@ -14,7 +14,7 @@ pip install requests beautifulsoup4
 
 ### How to use
 ```bash
-python3 stack-sniffer.py <url>
+python3 stack-sniffer.py --url <url>
 ```
 
 <br>
