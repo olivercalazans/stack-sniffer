@@ -7,7 +7,7 @@
 ### Dependencies
 This project can used with Python 3. Some external libs are requered.
 ```bash
-pip install requests
+pip install requests beautifulsoup4
 ```
 
 <br>
