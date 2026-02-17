@@ -10,23 +10,16 @@ from urllib.parse import urlparse, urljoin
 class StackSniffer:
 
     __slots__ = (
-        '_lock', '_responses', '_known_urls', '_info', '_url', '_redirect', '_verbose'
+        '_responses', '_known_urls', '_info', '_url', '_redirect', '_verbose'
     )
 
     def __init__(self):
-        self._lock       : Lock           = Lock()
         self._responses  : list[Request]  = []
         self._known_urls : set[str]       = set()
         self._info       : dict[str, str] = {}
         self._url        : str            = None
         self._redirect   : bool           = None
         self._verbose    : bool           = None
-
-
-
-    def _add_response(self, response: Request):
-        with self._lock:
-            self._responses.append(response)
     
 
 
@@ -93,7 +86,6 @@ class StackSniffer:
 
 
 
-
     def _create_threads_for_requests(self):
         USER_AGENTS = [
             'curl/7.81.0',
@@ -101,14 +93,16 @@ class StackSniffer:
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         ]
         
+        LOCK = Lock()
         threads: list[Thread] = []
+        
         for user in USER_AGENTS:
             headers = {
                 'User-Agent': user,
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             }
 
-            t = Thread(target=self._make_request, args=(headers,))
+            t = Thread(target=self._make_request, args=(headers, LOCK))
             threads.append(t)
             t.start()
 
@@ -117,7 +111,7 @@ class StackSniffer:
 
     
 
-    def _make_request(self, headers: dict):
+    def _make_request(self, headers: dict, LOCK: Lock):
         try:
             response = get(
                 self._url, headers=headers, 
@@ -125,7 +119,9 @@ class StackSniffer:
             )
 
             response.raise_for_status()
-            self._add_response(response)
+
+            with LOCK:
+                self._responses.append(response)
 
         except (Exception, RequestException):
             pass
@@ -184,9 +180,9 @@ class StackSniffer:
 
     def _find_url_in_html(self, soup: BeautifulSoup, netloc: str):
         TAGS_AND_ATTRIBUTES = {
-            'a': 'href',     'link': 'href',   'form': 'action',  
-            'area': 'href',  'base': 'href',   'embed': 'src',    
-            'frame': 'src',  'script': 'src',  'iframe': 'src',   'source': 'src',
+            'a': 'href',     'link': 'href',   'form': 'action',  'source': 'src',
+            'area': 'href',  'base': 'href',   'embed': 'src',    'img': 'src',
+            'frame': 'src',  'script': 'src',  'iframe': 'src',   
         }
 
         for tag, attribute in TAGS_AND_ATTRIBUTES.items():
