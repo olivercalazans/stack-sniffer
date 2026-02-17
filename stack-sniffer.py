@@ -46,6 +46,7 @@ class StackSniffer:
     def analyze(self):
         self._parse_args()
         self._create_threads_for_requests()
+        self._abort_if_responses_is_empty()
         self._update_base_url()
         self._sniff_headers()
         self._sniff_for_urls()
@@ -125,6 +126,12 @@ class StackSniffer:
 
         except (Exception, RequestException):
             pass
+
+    
+
+    def _abort_if_responses_is_empty(self):
+        if len(self._responses) <= 0:
+            self._abort('No response received')
     
 
 
