@@ -1,6 +1,6 @@
 <h1 align="center"> Stack-Sniffer </h1>
 
-**StackSniffer** is a Python-based command-line tool that discovers and analyzes the technology stack behind websites and web servers.
+**StackSniffer** is a Python-based command-line tool that **collects and displays fingerprinting evidence** from websites and web servers, presenting raw data (such as HTTP headers, HTML meta tags, script URLs, and file paths) that can be used **to identify the underlying technology stack** without making assumptions.
 
 <br>
 
@@ -16,6 +16,8 @@ pip install requests beautifulsoup4
 ```bash
 python3 stack-sniffer.py --url <url>
 ```
+> [!NOTE]
+> Use `--help` or `-h` to see more flags
 
 <br>
 
